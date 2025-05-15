@@ -1,0 +1,94 @@
+---
+title: "Life in the UK Flashcards"
+author: "Nicu Calcea"
+abstract: "Scraping Life in the UK questions and answers for importing into Anki."
+---
+
+Write your analysis in this file. You can use Markdown, LaTeX, and code blocks.
+
+```{r}
+#| output: false
+library(tidyverse)
+library(rvest)
+```
+
+Scrape page.
+
+```{r}
+life_raw <- read_html("https://lifeintheuktestweb.co.uk/test-1/") |>
+    html_elements(".container_question")
+```
+
+```{r}
+df <- map(life_raw, function(x) {
+    question <- x |>
+        html_element(".question") |>
+        html_text() |>
+        str_trim()
+
+    answers <- x |>
+        html_element(".container_answer") |>
+        html_elements("label") |>
+        html_text() |>
+        str_trim()
+
+    correct <- x |>
+        html_element(".container_explication") |>
+        html_text() |>
+        str_trim()
+
+    tibble(
+        question = question,
+        answers = paste0(answers, collapse = "\n"),
+        correct = correct
+    )
+}) |>
+    bind_rows()
+```
+
+Function to read all test pages.
+
+```{r}
+get_life <- function(page) {
+    # Sys.sleep(0.1)
+
+    url <- paste0("https://lifeintheuktestweb.co.uk/test-", page, "/")
+
+    life_raw <- read_html(url) |>
+        html_elements(".container_question")
+
+    map(life_raw, function(x) {
+        question <- x |>
+            html_element(".question") |>
+            html_text() |>
+            str_trim()
+
+        answers <- x |>
+            html_element(".container_answer") |>
+            html_elements("label") |>
+            html_text() |>
+            str_trim()
+
+        correct <- x |>
+            html_element(".container_explication") |>
+            html_text() |>
+            str_trim()
+
+        tibble(
+            question = paste0(question, "\n\n", paste0(answers, collapse = "\n")),
+            correct = correct,
+            test = paste0("Test ", page)
+        )
+    }) |>
+        bind_rows()
+}
+```
+
+Read in all 20 pages.
+
+```{r}
+life <- map(1:40, get_life, .progress = TRUE) |>
+    bind_rows()
+
+write_csv(life, "data/processed/life.csv", col_names = FALSE)
+```
